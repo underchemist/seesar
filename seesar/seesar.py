@@ -1,11 +1,19 @@
 """Main module."""
 from typing import Optional, Tuple, Union
+from attr import dataclass
 
 import numpy as np
 from numpy.typing import ArrayLike, DTypeLike
 import rasterio
 
-from seesar.enums import NormalizationKind
+from seesar.enums import NormalizationKind, Uint8, Uint16, Int16
+
+
+@dataclass
+class DataRanges:
+    uint8 = Uint8
+    Uint16 = Uint16
+    Int16 = Int16
 
 
 def rescale(
@@ -14,8 +22,8 @@ def rescale(
     src_max: Optional[float] = None,
     src_min_per: Optional[float] = None,
     src_max_per: Optional[float] = None,
-    dst_min: Union[float, int] = 0,
-    dst_max: Union[float, int] = 255,
+    dst_min: Union[float, int] = DataRanges.uint8.min,
+    dst_max: Union[float, int] = DataRanges.uint8.max,
     kind: NormalizationKind = NormalizationKind.linear,
     dtype: DTypeLike = np.uint8,
 ) -> np.ndarray:
@@ -46,12 +54,21 @@ def rescale(
     np.ndarray
         Rescaled array
 
+    Notes
+    -----
+    Rescaling with NormalizationKind.log will clip values <= 0.0 of the input array
+    to avoid runtime errors.
+
     """
-    if (src_min and not src_max) or (not src_min and src_max):
+    if (src_min is not None and src_max is None) or (
+        src_min is None and src_max is not None
+    ):
         raise ValueError("src_min and src_max must be specified together")
-    if (src_min_per and not src_max_per) or (not src_min_per and src_max_per):
+    if (src_min_per is not None and src_max_per is None) or (
+        src_min_per is None and src_max_per is not None
+    ):
         raise ValueError("src_min_per and src_max_per must be specified together")
-    if src_min and src_min_per:
+    if src_min is not None and src_min_per is not None:
         raise ValueError(
             "src_min, src_max and src_min_per, src_max_per are mutually exclusive"
         )
@@ -63,9 +80,9 @@ def rescale(
         # multiband, assume last two dimensions are width/height
         is_multiband = True
         axis = (-2, -1)
-    
+
     if kind is NormalizationKind.log:
-        # avoid runtime error
+        # avoid runtime error for values <= 0.0
         arr = np.clip(arr, np.finfo(arr.dtype).eps, None)
         arr = np.log10(arr)
 
@@ -82,5 +99,5 @@ def rescale(
     # normalize to between [0.0, 1.0]
     arr = arr.T
     arr = (arr - src_min) / (src_max - src_min)
-    arr = dst_min + (arr * dst_max)
+    arr = dst_min + (arr * (dst_max - dst_min))
     return arr.T.astype(dtype)
