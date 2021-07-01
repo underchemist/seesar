@@ -16,7 +16,7 @@ seesar
 
 
 
-Easily scale detected SAR float data to uint8 for easy viewing, and conversion to friendly file formats
+Easily scale detected SAR float data for easy viewing, and conversion to friendly file formats
 
 
 * Free software: MIT license
